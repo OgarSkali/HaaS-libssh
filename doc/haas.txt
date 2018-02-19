@@ -1,0 +1,10 @@
+// accept an incomming ssh connection already established TCP connection
+int ssh_bind_accept_fd(ssh_bind, ssh_session, socket)
+
+json:
+{
+	'pass': 'password,
+	'device_token': device_token,
+	'remote': host,
+	'remote_port': port
+}
