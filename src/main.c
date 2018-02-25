@@ -23,8 +23,23 @@
 static int				MasterPid;
 volatile int			ShouldStop;
 
-static volatile int	CurrTomb;		// where to burry now
-static volatile int	GraveYard[2];	// all the tombs
+////////////////////////////////////////////////////////////////////////////////
+//
+// Correctly count the dead children ...
+//
+// There are two other 'elegant' solution:
+// a) general: by using self-pipe/unixpair
+//    the signal handler writes one byte per each dead child, the select on the 
+//    other side will notice and read out the byte
+// b) linux specific: by using signalfd() function
+//
+// but let's go with this single solution, maybe not so elegant, but working 
+// on any unix flavor (actualy dos version would work too :-)
+
+static volatile int	CurrTomb;			// where to bury now
+static volatile int	GraveYard[2];	// all the tombs (actually two is enough)
+
+////////////////////////////////////////////////////////////////////////////////
 
 static
 void SigHandler(int Signal){
@@ -43,7 +58,7 @@ void SigHandler(int Signal){
 			break;
 		}
 
-		GraveYard[CurrTomb]+=1;	// register it :-)
+		GraveYard[CurrTomb]+=1;	// bury/register it :-)
 
 		qprintf("Child %d ended with %d ....\n",ChildPid,Status);
 	}
@@ -278,18 +293,18 @@ int main(int argc,char *argv[]){
 						break;
 					}
 
-					if (GraveYard[CurrTomb]){	// some dead ?
+					if (GraveYard[CurrTomb]){				// some dead child inside?
 						int	PrevTomb;
 						int	DeadCount;
 
-						PrevTomb=CurrTomb;
-						CurrTomb^=1;
+						PrevTomb=CurrTomb;					// remember the tomb
+						CurrTomb^=1;							// switch to the other
 
-						DeadCount=GraveYard[PrevTomb];
-						GraveYard[PrevTomb]=0;
+						DeadCount=GraveYard[PrevTomb];	// how many deads inside?
+						GraveYard[PrevTomb]=0;				// burn it :-)
 
-						ChildCount-=DeadCount;
-						qprintf("Found %d dead, how have %d children :-)\n",
+						ChildCount-=DeadCount;				// correct the living count
+						qprintf("Found %d dead, how have %d living :-)\n",
 										DeadCount,ChildCount);
 					}
 				}
