@@ -20,8 +20,11 @@
 #include "config.h"
 #include "proxy.h"
 
-static int		MasterPid;
-volatile int	ShouldStop;
+static int				MasterPid;
+volatile int			ShouldStop;
+
+static volatile int	CurrTomb;		// where to burry now
+static volatile int	GraveYard[2];	// all the tombs
 
 static
 void SigHandler(int Signal){
@@ -39,6 +42,9 @@ void SigHandler(int Signal){
 		if (ChildPid<=0){
 			break;
 		}
+
+		GraveYard[CurrTomb]+=1;	// register it :-)
+
 		qprintf("Child %d ended with %d ....\n",ChildPid,Status);
 	}
 }
@@ -245,6 +251,7 @@ int main(int argc,char *argv[]){
 			Back=2;
 		}
 		else{
+			int	ChildCount=0;
 			int	Max;
 
 			ProxyInit();
@@ -270,6 +277,21 @@ int main(int argc,char *argv[]){
 											Max,errno,strerror(errno));
 						break;
 					}
+
+					if (GraveYard[CurrTomb]){	// some dead ?
+						int	PrevTomb;
+						int	DeadCount;
+
+						PrevTomb=CurrTomb;
+						CurrTomb^=1;
+
+						DeadCount=GraveYard[PrevTomb];
+						GraveYard[PrevTomb]=0;
+
+						ChildCount-=DeadCount;
+						qprintf("Found %d dead, how have %d children :-)\n",
+										DeadCount,ChildCount);
+					}
 				}
 
 				if (i>0){
@@ -290,26 +312,37 @@ int main(int argc,char *argv[]){
 						else{
 							int	Pid;
 	
-							qprintf("Accepted client '%s:%d' on socket %d\n",
+							qprintf("Accepted %d/%d client '%s:%d' on socket %d\n",
+											ChildCount,Config.ConnLimit,
 											inet_ntoa(Sin.sin_addr),htons(Sin.sin_port),ChildSock);
 
-							Pid=fork();
-							if (Pid==-1){
-								qprintf("fork() -> %d '%s' !!!\n",errno,strerror(errno));
+							if (ChildCount>=Config.ConnLimit){
+								qprintf("Child limit %d reached !!!!\n",Config.ConnLimit);
+								close(ChildSock);
 							}
 							else{
-								if (Pid==0){	// child ...
-									close(MasterSock);
-									MasterSock=-1;
-									
-									ProxyProcess(ChildSock,&Sin,&Config);
+								Pid=fork();
+								if (Pid==-1){
+									qprintf("fork() -> %d '%s' !!!\n",errno,strerror(errno));
 								}
-							}
+								else{
+									if (Pid!=0){	// master ...
+										ChildCount+=1;
+										qprintf("Started %dth child with pid %d\n",ChildCount,Pid);
+									}
+									else{				// child ...
+										close(MasterSock);
+										MasterSock=-1;
+									
+										ProxyProcess(ChildSock,&Sin,&Config);
+									}
+								}
 	
-							close(ChildSock);	// always :-)
-							if (Pid==0){		// child ...
-								break;
-							}
+								close(ChildSock);	// always :-)
+								if (Pid==0){		// child ...
+									break;
+								}
+							}	// ChildCount
 						}	// ChildSock
 					}	// FD_ISSET(MasterSock)
 

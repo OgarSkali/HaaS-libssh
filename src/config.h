@@ -1,4 +1,4 @@
-// $Id: config.h,v 1.9 2017/12/28 19:03:29 skalak Exp $
+// $Id: config.h,v 1.10 2018/02/25 18:18:48 skalak Exp $
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -7,6 +7,8 @@
 #define DEFAULT_KEYS_FOLDER		"/etc/HaaS/keys/"
 
 #define DEFAULT_IDLE_TIMEOUT		30		// 30 sec
+
+#define DEFAULT_CONN_LIMIT			30		// 30 clients max
 
 #define DEFAULT_TRAP_PORT			2222
 #define DEFAULT_HAAS_HOST			"haas-app.nic.cz"
@@ -33,6 +35,7 @@ typedef struct{
 					int				DebugLevel;
 
 					int				IdleTimeout;
+					int				ConnLimit;
 
 					const char 		*TrapLog;
 					const char		*HaasLog;

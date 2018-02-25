@@ -1,4 +1,4 @@
-static const char ___[]=" $Id: config.c,v 1.11 2018/01/19 20:01:35 skalak Exp $ ";
+static const char ___[]=" $Id: config.c,v 1.12 2018/02/25 18:18:48 skalak Exp $ ";
 
 #define _GNU_SOURCE
 
@@ -25,10 +25,11 @@ void PrintUsage(const char *argv0){
 	printf("   %s [switches] [options] -t TOKEN\n",p);
 	printf("options:\n");
 	printf("     [-b BANNER] - banner to send to client (default is '%s')\n",DEFAULT_BANNER_STR);
-	printf("     [-p LOCAL_PORT] - where to run the 'trap' (default is %d)\n",DEFAULT_TRAP_PORT);
-	printf("     [-a HAAS_HOST] -  where to connect (default is '%s')\n",DEFAULT_HAAS_HOST);
-	printf("     [-r HAAS_PORT] -  where to connect (default is %s)\n",DEFAULT_HAAS_PORT);
-	printf("     [-k KEYS_DIR]  -  where to look for RSA/DSA keys (default is '%s')\n",DEFAULT_KEYS_FOLDER);
+	printf("     [-p LOCAL_PORT]   - where to run the 'trap' (default is %d)\n",DEFAULT_TRAP_PORT);
+	printf("     [-a HAAS_HOST]    - where to connect (default is '%s')\n",DEFAULT_HAAS_HOST);
+	printf("     [-r HAAS_PORT]    - where to connect (default is %s)\n",DEFAULT_HAAS_PORT);
+	printf("     [-k KEYS_DIR]     - where to look for RSA/DSA keys (default is '%s')\n",DEFAULT_KEYS_FOLDER);
+	printf("     [-c CONN_LIMIT]   - connection limit (default is %d clients)\n",DEFAULT_CONN_LIMIT);
 	printf("     [-i IDLE_TIMEOUT] - inactivity timeout (default is %d sec)\n",DEFAULT_IDLE_TIMEOUT);
 	printf("     [-m FORWARD_MODE] - how to handle port forwrading (default mode is %d)\n",DEFAULT_FORWARD_MODE);
 	printf("                         0-deny, 1-allow, 2-fake, 3-null, 4-echo\n");
@@ -42,6 +43,7 @@ void ConfigInit(tConfig *Config){
 	Config->Foreground=0;
 
 	Config->IdleTimeout=-1;
+	Config->ConnLimit=-1;
 
 	Config->DebugLevel=0;
 
@@ -70,7 +72,7 @@ int ConfigParse(int argc,char **argv,tConfig *Config){
 	while(Back){
 		int	i;
 
-		i=getopt(argc,argv,":fhp:a:r:t:k:di:b:m:");
+		i=getopt(argc,argv,":fhp:a:r:t:k:di:c:b:m:");
 		if (i==-1){
 			break;
 		}
@@ -190,6 +192,30 @@ int ConfigParse(int argc,char **argv,tConfig *Config){
 							}
 						break;
 
+			case 'c':	if (Config->ConnLimit!=-1){
+								printf("Error, multiple CONN_LIMIT argument '%s' !!!\n",optarg);
+								Back=0;
+							}
+							else{
+								char	*p;
+
+								i=strtol(optarg,&p,0);
+								if (*p!=0){
+									printf("Error, parsing CONN_LIMIT value '%s' !!!\n",optarg);
+									Back=0;
+								}
+								else{
+									if (i<=0){
+										printf("Error, CONN_LIMIT %d out of range !!!\n",i);
+										Back=0;
+									}
+									else{
+										Config->ConnLimit=i;
+									}
+								}
+							}
+						break;
+
 			case 'm':	if (Config->ForwardMode!=-1){
 								printf("Error, multiple FORWARD_MODE argument '%s' !!!\n",optarg);
 								Back=0;
@@ -276,6 +302,11 @@ int ConfigParse(int argc,char **argv,tConfig *Config){
 			if (Config->IdleTimeout==-1){
 				printf("Using default IDLE_TIMEOUT of %d sec\n",DEFAULT_IDLE_TIMEOUT);
 				Config->IdleTimeout=DEFAULT_IDLE_TIMEOUT;
+			}
+
+			if (Config->ConnLimit==-1){
+				printf("Using default CONN_LIMIT of %d clients\n",DEFAULT_CONN_LIMIT);
+				Config->ConnLimit=DEFAULT_CONN_LIMIT;
 			}
 
 			if (Config->Banner==NULL){
