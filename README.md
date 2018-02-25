@@ -14,6 +14,7 @@ Usage:
 		options:
 			[-p LOCAL_PORT] - where to run the 'trap' (default is 22)
 			[-a HAAS_HOST] -  where to connect (default is haas-ap.nic.cz)
+			[-c CONN_LIMIT] - connection limit (default is 30 clients)
 			[-r HAAS_PORT] -  where to connect (default is 10000)
 			[-k KEYS_DIR]  -  where to look for RSA/DSA/ECC keys (default is /etc/HaaS/keys)
 			[-i IDLE_TIMEOUT] - inactivity timeout (default is 30 sec)
