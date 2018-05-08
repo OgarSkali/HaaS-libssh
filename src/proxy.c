@@ -1,4 +1,4 @@
-static const char ___[]=" $Id: proxy.c,v 1.39 2018/01/19 20:01:35 skalak Exp $ ";
+static const char ___[]=" $Id: proxy.c,v 1.40 2018/05/08 21:39:46 skalak Exp $ ";
 
 #define _GNU_SOURCE
 
@@ -15,6 +15,7 @@ static const char ___[]=" $Id: proxy.c,v 1.39 2018/01/19 20:01:35 skalak Exp $ "
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <sys/resource.h>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -67,6 +68,7 @@ typedef struct{
 					int				HaveShell;
 
 					struct timeval	IdleTimer;
+					struct timeval	SessionTimer;
 
 					ssh_session		HaasSession;
 					ssh_channel		HaasChannel;
@@ -82,28 +84,69 @@ typedef struct{
 ////////////////////////////////////////////////////////////////////////////////
 
 static
-void IdleTimerReset(tSshContext *Context){
-	gettimeofday(&Context->IdleTimer,NULL);
-
-	Context->IdleTimer.tv_sec+=Context->Config->IdleTimeout;
+void TimerStart(struct timeval *Timer,int Sec){
+	gettimeofday(Timer,NULL);
+	Timer->tv_sec+=Sec;
 }
 
 static
-int IdleTimerGet(const tSshContext *Context){
+int TimerGet(const struct timeval *Timer){
 	struct timeval	Now;
 	int				Back=0;
 
 	gettimeofday(&Now,NULL);
-	if (timercmp(&Now,&Context->IdleTimer,<)){
-		Back=Context->IdleTimer.tv_sec;
+	if (timercmp(&Now,Timer,<)){
+		Back=Timer->tv_sec;
 		Back-=Now.tv_sec;
 		Back*=1000;
-		Back+=Context->IdleTimer.tv_usec/1000;
+		Back+=Timer->tv_usec/1000;
 		Back-=Now.tv_usec/1000;
 	}
 
 	return Back;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+static
+void IdleTimerReset(tSshContext *Context){
+	TimerStart(&Context->IdleTimer,Context->Config->IdleTimeout);
+}
+
+static
+int IdleTimerGet(const tSshContext *Context){
+	return TimerGet(&Context->IdleTimer);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+static
+int CheckUsage(tSshContext *Context){
+	int	Back=1;
+
+	if (Context->Config->CpuUsage>0){
+		struct rusage	Usage;
+		int				i;
+
+		i=getrusage(RUSAGE_SELF,&Usage);
+		if (i!=0){
+			qdebugf(QLEVEL_INFO,"Error, rusage(SELF) -> %d '%s' !!!\n",
+									errno,strerror(errno));
+			Back=0;
+		}
+		else{
+			if (Usage.ru_utime.tv_sec>Context->Config->CpuUsage){
+				Back=0;
+			}
+		}
+	}
+
+	return Back;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 /*
 static
@@ -514,8 +557,8 @@ int HaasConnect(tSshContext *Context,const char *User,const char *Password){
 		i=ssh_options_set(Session, SSH_OPTIONS_HOST, Context->Config->HaasAddr);
 		qdebugf(QLEVEL_INFO,"ssh_options_set(HOST,'%s') -> %d\n",Context->Config->HaasAddr,i);
 
-		i=ssh_options_set(Session, SSH_OPTIONS_PORT_STR, Context->Config->HaasPort);
-		qdebugf(QLEVEL_INFO,"ssh_options_set(PORT_STR,'%s') -> %d\n",Context->Config->HaasPort,i);
+		i=ssh_options_set(Session, SSH_OPTIONS_PORT, &Context->Config->HaasPort);
+		qdebugf(QLEVEL_INFO,"ssh_options_set(PORT_STR,%d) -> %d\n",Context->Config->HaasPort,i);
 
 		{
 			int	TimeOut=60;	// 60 sec ...
@@ -1644,6 +1687,9 @@ void ProxyProcess(int TrapSock,struct sockaddr_in *Sin,const tConfig *Config){
 		qdebugf(QLEVEL_INFO,"ssh_event_add_session(Trap) -> %d\n",i);
 
 		IdleTimerReset(&Context);
+		if (Config->SessionTimeout>0){
+			TimerStart(&Context.SessionTimer,Config->SessionTimeout);
+		}
 
 		while ((!Error)&&(!ShouldStop)){
 			int	Ret;
@@ -1655,7 +1701,21 @@ void ProxyProcess(int TrapSock,struct sockaddr_in *Sin,const tConfig *Config){
 				Error=1;
 				break;
 			}
-			
+
+			if (Config->SessionTimeout>0){
+				int	i;
+
+				i=TimerGet(&Context.SessionTimer);
+				if (i==0){
+					qprintf("SessionTimer - timeout :-(\n");
+					Error=1;
+					break;
+				}
+				if (i<Time){
+					Time=i;
+				}
+			}
+	
 			Ret=ssh_event_dopoll(MainLoop,Time);
 			if (Ret==SSH_EINTR){
 				continue;
@@ -1703,6 +1763,19 @@ void ProxyProcess(int TrapSock,struct sockaddr_in *Sin,const tConfig *Config){
 					if (Time==0){
 						qprintf("IdleTimer - timeout :-(\n");
 						break;
+					}
+					if (Config->SessionTimeout>0){
+						int	i;
+
+						i=TimerGet(&Context.SessionTimer);
+						if (i==0){
+							qprintf("SessionTimer - timeout :-(\n");
+							Error=1;
+							break;
+						}
+						if (i<Time){
+							Time=i;
+						}
 					}
 
 					Ret=ssh_event_dopoll(MainLoop,Time);

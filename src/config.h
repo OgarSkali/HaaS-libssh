@@ -1,4 +1,4 @@
-// $Id: config.h,v 1.10 2018/02/25 18:18:48 skalak Exp $
+// $Id: config.h,v 1.12 2018/05/08 21:39:46 skalak Exp $
 
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -8,11 +8,14 @@
 
 #define DEFAULT_IDLE_TIMEOUT		30		// 30 sec
 
+#define DEFAULT_PROCESS_NICE		0		// nothing :-)
+
 #define DEFAULT_CONN_LIMIT			30		// 30 clients max
 
 #define DEFAULT_TRAP_PORT			2222
+
 #define DEFAULT_HAAS_HOST			"haas-app.nic.cz"
-#define DEFAULT_HAAS_PORT			"10000"
+#define DEFAULT_HAAS_PORT			10000
 
 #define DEFAULT_BANNER_STR			"OpenSSH_7.2p2 Ubuntu-4ubuntu2.2"
 
@@ -35,6 +38,10 @@ typedef struct{
 					int				DebugLevel;
 
 					int				IdleTimeout;
+					int				SessionTimeout;
+					int				CpuUsage;
+					int				ProcessNice;
+
 					int				ConnLimit;
 
 					const char 		*TrapLog;
@@ -49,7 +56,7 @@ typedef struct{
 					const char		*KeysDir;
 
 					const char		*HaasAddr;
-					const char 		*HaasPort;
+					int				HaasPort;
 
 					const char		*HaasToken;
 				}tConfig;

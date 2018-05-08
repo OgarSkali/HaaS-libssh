@@ -240,8 +240,26 @@ int main(int argc,char *argv[]){
 		qsetlevel(Config.DebugLevel);
 
 		qprintf("Starting on port %d\n",Config.TrapPort);
-		qprintf("with HaaS at '%s:%s' and token '%s'\n",
+		qprintf("with HaaS at '%s:%d' and token '%s'\n",
 						Config.HaasAddr,Config.HaasPort,Config.HaasToken);
+
+		if (Config.ProcessNice!=-1){
+			int	i;
+
+			errno=0;
+			i=nice(Config.ProcessNice);
+			if (i!=Config.ProcessNice){
+				if ((i==-1)&&(errno!=0)){
+					qprintf("Error, setting nice to %d -> %d '%s' !!!\n",
+								Config.ProcessNice,errno,strerror(errno));
+				}
+				else{
+					qprintf("Error, setting nice to %d, but get %d !!!\n",
+								Config.ProcessNice,i);
+				}
+				Back=1;
+			}
+		}
 	}
 
 	if ((Back==0)&&(Work)){		

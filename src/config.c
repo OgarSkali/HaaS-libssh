@@ -1,4 +1,4 @@
-static const char ___[]=" $Id: config.c,v 1.12 2018/02/25 18:18:48 skalak Exp $ ";
+static const char ___[]=" $Id: config.c,v 1.14 2018/05/08 21:39:46 skalak Exp $ ";
 
 #define _GNU_SOURCE
 
@@ -27,10 +27,13 @@ void PrintUsage(const char *argv0){
 	printf("     [-b BANNER] - banner to send to client (default is '%s')\n",DEFAULT_BANNER_STR);
 	printf("     [-p LOCAL_PORT]   - where to run the 'trap' (default is %d)\n",DEFAULT_TRAP_PORT);
 	printf("     [-a HAAS_HOST]    - where to connect (default is '%s')\n",DEFAULT_HAAS_HOST);
-	printf("     [-r HAAS_PORT]    - where to connect (default is %s)\n",DEFAULT_HAAS_PORT);
+	printf("     [-r HAAS_PORT]    - where to connect (default is %d)\n",DEFAULT_HAAS_PORT);
 	printf("     [-k KEYS_DIR]     - where to look for RSA/DSA keys (default is '%s')\n",DEFAULT_KEYS_FOLDER);
 	printf("     [-c CONN_LIMIT]   - connection limit (default is %d clients)\n",DEFAULT_CONN_LIMIT);
 	printf("     [-i IDLE_TIMEOUT] - inactivity timeout (default is %d sec)\n",DEFAULT_IDLE_TIMEOUT);
+	printf("     [-s SESSION_TIMEOUT] - maximum session length in sec (default is unlimited)\n");
+	printf("     [-u CPU_USAGE_LIMIT] - maximum cpu suage limit in sec (default is unlimited)\n");
+	printf("     [-n PROCESS_NICE]    - nice of the process (default is %d)\n",DEFAULT_PROCESS_NICE);
 	printf("     [-m FORWARD_MODE] - how to handle port forwrading (default mode is %d)\n",DEFAULT_FORWARD_MODE);
 	printf("                         0-deny, 1-allow, 2-fake, 3-null, 4-echo\n");
 	printf("\n");
@@ -43,11 +46,15 @@ void ConfigInit(tConfig *Config){
 	Config->Foreground=0;
 
 	Config->IdleTimeout=-1;
+	Config->SessionTimeout=-1;
+	Config->CpuUsage=-1;
+	Config->ProcessNice=-1;
+
 	Config->ConnLimit=-1;
 
 	Config->DebugLevel=0;
 
-	Config->TrapPort=0;
+	Config->TrapPort=-1;
 
 	Config->ForwardMode=-1;
 
@@ -56,13 +63,65 @@ void ConfigInit(tConfig *Config){
 	Config->KeysDir=NULL;
 
 	Config->HaasAddr=NULL;
-	Config->HaasPort=NULL;
+	Config->HaasPort=-1;
 	Config->HaasToken=NULL;
 
 	Config->TrapLog="5";		// NULL;
 	Config->HaasLog=NULL;	// "5";
 
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+static
+int ParseInt(int *Value,const char *Name,const char *optarg){
+	int	Back=0;
+
+	if (*Value!=-1){
+		printf("Error, multiple %s argument '%s' !!!\n",Name,optarg);
+	}
+	else{
+		char	*p;
+		int	i;
+
+		i=strtol(optarg,&p,0);
+		if (*p!=0){
+			printf("Error, parsing %s value '%s' !!!\n",Name,optarg);
+		}
+		else{
+			if (i<=0){
+				printf("Error, %s %d out of range !!!\n",Name,i);
+			}
+			else{
+				*Value=i;
+				Back=1;
+			}
+		}
+	}
+
+	return Back;
+}
+
+static
+int ParsePort(int *Value,const char *Name,const char *optarg){
+	int	Back=0;
+	int	i;
+
+	i=*Value;
+	if (ParseInt(&i,Name,optarg)){
+		if (i>=65535){
+			printf("Error, %s %d out of range !!!\n",Name,i);
+		}
+		else{
+			*Value=i;
+			Back=1;
+		}
+	}
+
+	return Back;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 int ConfigParse(int argc,char **argv,tConfig *Config){
 	int	Back=1;	// optimist 
@@ -72,7 +131,7 @@ int ConfigParse(int argc,char **argv,tConfig *Config){
 	while(Back){
 		int	i;
 
-		i=getopt(argc,argv,":fhp:a:r:t:k:di:c:b:m:");
+		i=getopt(argc,argv,":fhp:a:r:t:k:di:c:b:m:s:u:n:");
 		if (i==-1){
 			break;
 		}
@@ -81,27 +140,8 @@ int ConfigParse(int argc,char **argv,tConfig *Config){
 			case 'f':	Config->Foreground=1;
 						break;
 
-			case 'p':	if (Config->TrapPort!=0){
-								printf("Error, multiple LOCAL_PORT argument '%s' !!!\n",optarg);
+			case 'p':	if (!ParsePort(&Config->TrapPort,"LOCAL_PORT",optarg)){
 								Back=0;
-							}
-							else{
-								char	*p;
-
-								i=strtol(optarg,&p,0);
-								if (*p!=0){
-									printf("Error, parsing LOCAL_PORT value '%s' !!!\n",optarg);
-									Back=0;
-								}
-								else{
-									if ((i<=0)||(i>=65535)){
-										printf("Error, LOCAL_PORT %d out of range !!!\n",i);
-										Back=0;
-									}
-									else{
-										Config->TrapPort=i;
-									}
-								}
 							}
 						break;
 
@@ -114,27 +154,8 @@ int ConfigParse(int argc,char **argv,tConfig *Config){
 							}
 						break;
 
-			case 'r':	if (Config->HaasPort!=NULL){
-								printf("Error, multiple HAAS_PORT argument '%s' !!!\n",optarg);
+			case 'r':	if (!ParsePort(&Config->HaasPort,"HAAS_PORT",optarg)){
 								Back=0;
-							}
-							else{
-								char	*p;
-
-								i=strtol(optarg,&p,0);
-								if (*p!=0){
-									printf("Error, parsing HAAS_PORT value '%s' !!!\n",optarg);
-									Back=0;
-								}
-								else{
-									if ((i<=0)||(i>=65535)){
-										printf("Error, HAAS_PORT %d out of range !!!\n",i);
-										Back=0;
-									}
-									else{
-										Config->HaasPort=optarg;
-									}
-								}
 							}
 						break;
 
@@ -168,51 +189,28 @@ int ConfigParse(int argc,char **argv,tConfig *Config){
 			case 'd':	Config->DebugLevel++;
 						break;
 
-			case 'i':	if (Config->IdleTimeout!=-1){
-								printf("Error, multiple IDLE_TIMEOUT argument '%s' !!!\n",optarg);
+			case 'i':	if (!ParseInt(&Config->IdleTimeout,"IDLE_TIMEOUT",optarg)){
 								Back=0;
-							}
-							else{
-								char	*p;
-
-								i=strtol(optarg,&p,0);
-								if (*p!=0){
-									printf("Error, parsing IDLE_TIMEOUT value '%s' !!!\n",optarg);
-									Back=0;
-								}
-								else{
-									if (i<=0){
-										printf("Error, IDLE_TIMEOUT %d out of range !!!\n",i);
-										Back=0;
-									}
-									else{
-										Config->IdleTimeout=i;
-									}
-								}
 							}
 						break;
 
-			case 'c':	if (Config->ConnLimit!=-1){
-								printf("Error, multiple CONN_LIMIT argument '%s' !!!\n",optarg);
+			case 's':	if (!ParseInt(&Config->SessionTimeout,"SESSION_TIMEOUT",optarg)){
 								Back=0;
 							}
-							else{
-								char	*p;
+						break;
 
-								i=strtol(optarg,&p,0);
-								if (*p!=0){
-									printf("Error, parsing CONN_LIMIT value '%s' !!!\n",optarg);
-									Back=0;
-								}
-								else{
-									if (i<=0){
-										printf("Error, CONN_LIMIT %d out of range !!!\n",i);
-										Back=0;
-									}
-									else{
-										Config->ConnLimit=i;
-									}
-								}
+			case 'u':	if (!ParseInt(&Config->CpuUsage,"CPU_USAGE",optarg)){
+								Back=0;
+							}
+						break;
+
+			case 'n':	if (!ParseInt(&Config->ProcessNice,"PROCESS_NICE",optarg)){
+								Back=0;
+							}
+						break;
+
+			case 'c':	if (!ParseInt(&Config->ConnLimit,"CONN_LIMIT",optarg)){
+								Back=0;
 							}
 						break;
 
@@ -279,7 +277,7 @@ int ConfigParse(int argc,char **argv,tConfig *Config){
 		}
 
 		if (Back){
-			if (Config->TrapPort==0){
+			if (Config->TrapPort==-1){
 				printf("Using default LOCAL_PORT %d\n",DEFAULT_TRAP_PORT);
 				Config->TrapPort=DEFAULT_TRAP_PORT;
 			}
@@ -289,8 +287,8 @@ int ConfigParse(int argc,char **argv,tConfig *Config){
 				Config->HaasAddr=DEFAULT_HAAS_HOST;
 			}
 
-			if (Config->HaasPort==NULL){
-				printf("Using defualt HAAS PORT %s\n",DEFAULT_HAAS_PORT);
+			if (Config->HaasPort==-1){
+				printf("Using defualt HAAS PORT %d\n",DEFAULT_HAAS_PORT);
 				Config->HaasPort=DEFAULT_HAAS_PORT;
 			}
 
