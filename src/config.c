@@ -23,6 +23,7 @@ void PrintUsage(const char *argv0){
 
 	printf("Usage:\n");
 	printf("   %s [switches] [options] -t TOKEN\n",p);
+	printf("\n");
 	printf("options:\n");
 	printf("     [-b BANNER] - banner to send to client (default is '%s')\n",DEFAULT_BANNER_STR);
 	printf("     [-p LOCAL_PORT]   - where to run the 'trap' (default is %d)\n",DEFAULT_TRAP_PORT);
@@ -36,6 +37,12 @@ void PrintUsage(const char *argv0){
 	printf("     [-n PROCESS_NICE]    - nice of the process (default is %d)\n",DEFAULT_PROCESS_NICE);
 	printf("     [-m FORWARD_MODE] - how to handle port forwrading (default mode is %d)\n",DEFAULT_FORWARD_MODE);
 	printf("                         0-deny, 1-allow, 2-fake, 3-null, 4-echo\n");
+	printf("\n");
+	printf("switches:\n");
+	printf("     [-f] - foreground mode (don't fork)\n");
+	printf("     [-d] - increase debug level\n");
+	printf("     [-h] - this help :-)\n");
+	printf("     [-?] - this help :-)\n");
 	printf("\n");
 }
 
@@ -131,7 +138,7 @@ int ConfigParse(int argc,char **argv,tConfig *Config){
 	while(Back){
 		int	i;
 
-		i=getopt(argc,argv,":fhp:a:r:t:k:di:c:b:m:s:u:n:");
+		i=getopt(argc,argv,":fhdp:a:r:t:k:i:c:b:m:s:u:n:");
 		if (i==-1){
 			break;
 		}
