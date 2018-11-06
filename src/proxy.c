@@ -1694,7 +1694,13 @@ void ProxyProcess(int TrapSock,struct sockaddr_in *Sin,const tConfig *Config){
 		while ((!Error)&&(!ShouldStop)){
 			int	Ret;
 			int	Time;
-	
+
+			if (!CheckUsage(&Context)){
+				qprintf("Usage limit reached :-(\n");
+				Error=1;
+				break;
+			}
+
 			Time=IdleTimerGet(&Context);
 			if (Time==0){
 				qprintf("IdleTimer - timeout :-(\n");
@@ -1715,7 +1721,7 @@ void ProxyProcess(int TrapSock,struct sockaddr_in *Sin,const tConfig *Config){
 					Time=i;
 				}
 			}
-	
+
 			Ret=ssh_event_dopoll(MainLoop,Time);
 			if (Ret==SSH_EINTR){
 				continue;
