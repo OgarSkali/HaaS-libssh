@@ -4,6 +4,9 @@
 #define _GLOBAL_H_
 
 // set to 1 in signal handler, can be read after EINTR
+
+// have to use extern keyword because of new gcc behaviour
+// (can be mitigated by using command-line '-fcommon' ;-)
 volatile int ShouldStop;
 
 #endif // _GLOBAL_H_
