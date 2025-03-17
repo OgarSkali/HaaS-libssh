@@ -7,6 +7,6 @@
 
 // have to use extern keyword because of new gcc behaviour
 // (can be mitigated by using command-line '-fcommon' ;-)
-volatile int ShouldStop;
+extern volatile int ShouldStop;
 
 #endif // _GLOBAL_H_
