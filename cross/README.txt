@@ -1,2 +1,3 @@
-Sample crosscompilation 'scripts'/'configs' for ASUS RT-16N.
+#Sample crosscompilation 'scripts'/'configs' for ASUS RT-16N.
+Sample crosscompilation 'scripts'/'configs' for Mikrotik RB951G-2HnD.
 Just copy over the default source distribution and run apropriate Cross.sh .....
